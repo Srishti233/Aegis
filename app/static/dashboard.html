@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aegis dashboard</title>
+<style>
+  :root { --bg:#e8ece8; --panel:#f7f8f6; --ink:#14201b; --mute:#5c6b63; --line:#c9d1cb;
+          --allow:#1f6f4a; --redact:#8a5d00; --block:#a8261d; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:12px 24px; align-items:center; padding:18px 28px; border-bottom:2px solid var(--ink); background:var(--panel); }
+  header h1 { margin:0; font:700 22px/1 var(--mono); letter-spacing:-0.5px; }
+  header p { margin:0; color:var(--mute); flex:1 1 260px; }
+  header input { font:14px var(--mono); padding:7px 10px; border:1px solid var(--ink); background:#fff; width:230px; }
+  header button, .panel button { font:600 14px system-ui; padding:7px 14px; border:1px solid var(--ink); background:var(--ink); color:var(--panel); cursor:pointer; }
+  main { max-width:1180px; margin:0 auto; padding:24px 28px 60px; display:grid; gap:20px; }
+  .counters { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+  .counter { background:var(--panel); border:1px solid var(--line); border-left:6px solid var(--ink); padding:12px 16px; }
+  .counter b { display:block; font:700 32px/1.1 var(--mono); }
+  .counter span { color:var(--mute); font-size:13px; }
+  .c-allow { border-left-color:var(--allow); } .c-redact { border-left-color:var(--redact); } .c-block { border-left-color:var(--block); }
+  .panel { background:var(--panel); border:1px solid var(--line); padding:16px 20px; }
+  .panel h2 { margin:0 0 12px; font-size:16px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:20px; } @media (max-width:820px){ .two { grid-template-columns:1fr; } }
+  .bar { display:grid; grid-template-columns:190px 1fr 40px; gap:10px; align-items:center; margin:6px 0; font-size:14px; }
+  .bar i { display:block; height:14px; background:var(--block); min-width:2px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-weight:600; color:var(--mute); border-bottom:1px solid var(--ink); padding:6px 8px 6px 0; }
+  td { padding:6px 8px 6px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  td.mono { font-family:var(--mono); font-size:12px; word-break:break-all; }
+  .d-allow { color:var(--allow); font-weight:700; } .d-redact { color:var(--redact); font-weight:700; } .d-block { color:var(--block); font-weight:700; }
+  #verify-out { margin-top:12px; font:13px var(--mono); padding:10px 12px; background:#fff; border:1px solid var(--line); word-break:break-all; }
+  .ok { border-color:var(--allow)!important; } .bad { border-color:var(--block)!important; background:#fbeeed!important; }
+  #err { color:var(--block); font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Aegis</h1>
+  <p>LLM firewall console. Counters cover the last 5,000 audit events and refresh every 3 seconds.</p>
+  <input id="key" type="password" placeholder="admin key" autocomplete="off">
+  <button id="save">Connect</button>
+  <span id="err"></span>
+</header>
+<main>
+  <section class="counters">
+    <div class="counter"><b id="n-req">-</b><span>requests</span></div>
+    <div class="counter c-allow"><b id="n-allow">-</b><span>allowed</span></div>
+    <div class="counter c-redact"><b id="n-redact">-</b><span>redacted</span></div>
+    <div class="counter c-block"><b id="n-block">-</b><span>blocked</span></div>
+    <div class="counter"><b id="n-lat">-</b><span>ms average pipeline latency</span></div>
+  </section>
+  <section class="two">
+    <div class="panel"><h2>Blocks by category</h2><div id="cats"><span style="color:var(--mute)">nothing blocked yet</span></div></div>
+    <div class="panel"><h2>Audit chain</h2>
+      <p style="margin:0 0 10px;color:var(--mute)">Each event stores the hash of the one before it. Verification re-computes the whole chain.</p>
+      <button id="verify">Verify audit chain</button><div id="verify-out">not verified yet</div></div>
+  </section>
+  <section class="panel"><h2>Recent events (redacted snippets only)</h2>
+    <table><thead><tr><th>#</th><th>time</th><th>key</th><th>dir</th><th>decision</th><th>risk</th><th>rules / categories</th><th>snippet</th></tr></thead>
+    <tbody id="rows"></tbody></table></section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+$('key').value = sessionStorage.getItem('aegis_admin') || '';
+$('save').onclick = () => { sessionStorage.setItem('aegis_admin', $('key').value); refresh(); };
+const hdr = () => ({ 'X-Admin-Key': sessionStorage.getItem('aegis_admin') || '' });
+
+async function refresh() {
+  try {
+    const r = await fetch('/admin/stats', { headers: hdr() });
+    if (!r.ok) { $('err').textContent = r.status === 401 ? 'enter the admin key' : 'error ' + r.status; return; }
+    $('err').textContent = '';
+    const s = await r.json();
+    $('n-req').textContent = s.requests; $('n-allow').textContent = s.decisions.allow;
+    $('n-redact').textContent = s.decisions.redact; $('n-block').textContent = s.decisions.block;
+    $('n-lat').textContent = s.avg_pipeline_latency_ms.toFixed(2);
+    const cats = Object.entries(s.blocks_by_category).sort((a, b) => b[1] - a[1]), max = Math.max(1, ...cats.map(c => c[1]));
+    $('cats').innerHTML = cats.length ? cats.map(([c, n]) =>
+      `<div class="bar"><span>${esc(c)}</span><i style="width:${100 * n / max}%"></i><b>${n}</b></div>`).join('')
+      : '<span style="color:var(--mute)">nothing blocked yet</span>';
+    $('rows').innerHTML = s.recent.map(e => `<tr><td class="mono">${e.seq}</td><td class="mono">${esc(e.ts.slice(11, 19))}</td>
+      <td>${esc(e.api_key_id)}</td><td>${e.direction}</td><td class="d-${e.decision}">${e.decision}${e.would_block && e.decision !== 'block' ? ' (would block)' : ''}</td>
+      <td class="mono">${e.risk_score.toFixed(2)}</td><td class="mono">${esc(e.matched_rules.join(' ') || e.categories.join(' ') || '-')}</td>
+      <td>${esc(e.snippet)}</td></tr>`).join('');
+  } catch (e) { $('err').textContent = 'gateway unreachable'; }
+}
+$('verify').onclick = async () => {
+  const out = $('verify-out'); out.className = ''; out.textContent = 'verifying...';
+  const r = await fetch('/admin/audit/verify', { headers: hdr() });
+  if (!r.ok) { out.textContent = 'admin key required'; return; }
+  const v = await r.json();
+  out.className = v.intact ? 'ok' : 'bad';
+  out.textContent = v.intact ? `INTACT: ${v.entries_checked} entries verified. head ${v.head_hash}`
+    : `BROKEN at seq ${v.first_break_seq}: ${v.reason}`;
+};
+refresh(); setInterval(refresh, 3000);
+</script>
+</body>
+</html>

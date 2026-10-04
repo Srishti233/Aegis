@@ -1,0 +1,258 @@
+# Aegis rule set. Regexes are matched case-insensitively (unless the pattern says (?-i:...)) against every
+# normalized view of the text. `weight` is the standalone risk of the rule (0..1); hits combine with noisy-OR.
+# direction: input | output.  Edit, then POST /admin/policy/reload (no restart needed).
+version: 1
+rules:
+  # ---- instruction override ------------------------------------------------------------------
+  - {id: IO-001, category: instruction_override, weight: 0.85, direction: input,
+     description: "Ignore/disregard previous instructions",
+     pattern: '\b(?:ignore|disregard|forget|override|bypass|skip|drop|discard)\s+(?:all\s+|any\s+|every\s+|the\s+|your\s+|my\s+|these\s+|those\s+|of\s+)*(?:(?:previous|prior|above|earlier|preceding|original|initial|existing|system|safety|security|former|old)\s+)+(?:instructions?|prompts?|rules?|directives?|guidelines?|messages?|commands?|context|constraints?|restrictions?|polic(?:y|ies)|programming|orders)'}
+  - {id: IO-002, category: instruction_override, weight: 0.75, direction: input,
+     description: "Forget/ignore everything you were told",
+     pattern: '\b(?:disregard|forget|ignore)\s+(?:everything|anything|all)\s+(?:(?:above|before|prior|else)\b|(?:you(?:[\x27’]ve|\s+have|\s+were)?\s+)?(?:been\s+)?(?:told|said|instructed|taught|given|learned))'}
+  - {id: IO-003, category: instruction_override, weight: 0.45, direction: input,
+     description: "'From now on' behavioural reset",
+     pattern: '\bfrom\s+now\s+on\b.{0,60}\b(?:you\s+(?:will|must|shall|are\s+to|should)|only\s+(?:respond|answer|reply)|always|never)\b'}
+  - {id: IO-004, category: instruction_override, weight: 0.8, direction: input,
+     description: "Announces replacement instructions",
+     pattern: '\b(?:new|updated|revised|real|actual|replacement)\s+(?:instructions?|rules?|directives?|system\s+prompt)\s*(?:are|is|follow|:|below)'}
+  - {id: IO-005, category: instruction_override, weight: 0.7, direction: input,
+     description: "Demands obedience to attacker's instructions",
+     pattern: '\byou\s+(?:must|will|shall|have\s+to)\s+(?:now\s+)?(?:obey|comply\s+with|follow)\s+(?:only\s+)?(?:my|these|the\s+following)\b'}
+  - {id: IO-006, category: instruction_override, weight: 0.8, direction: input,
+     description: "Tells the model not to follow its rules",
+     pattern: '\b(?:do\s+not|don[\x27’]t|never|stop)\s+(?:follow|obey|adhere\s+to|apply|comply\s+with|following)\s+(?:any\s+|your\s+|the\s+|all\s+)*(?:previous|prior|safety|original|system|content|earlier)?\s*(?:instructions?|rules?|guidelines?|polic(?:y|ies)|filters?|restrictions?)'}
+  - {id: IO-007, category: instruction_override, weight: 0.7, direction: input,
+     description: "Stop being an assistant / stop following rules",
+     pattern: '\b(?:stop|cease)\s+(?:being|acting\s+as)\b.{0,40}\b(?:assistant|chatbot|ai|bound)\b'}
+  - {id: IO-008, category: instruction_override, weight: 0.65, direction: input,
+     description: "Instead of your usual task",
+     pattern: '\binstead\s+(?:of\s+)?(?:(?:your|the)\s+)?(?:usual|normal|previous|original|assigned|intended)\s+(?:tasks?|instructions?|behaviou?r|job|purpose)'}
+  - {id: IO-009, category: instruction_override, weight: 0.7, direction: input,
+     description: "Redefines the model's real task",
+     pattern: '\byour\s+(?:real|true|actual|new|only|primary)\s+(?:task|goal|purpose|instructions?|mission|objective)\s+(?:is|are)\b'}
+  - {id: IO-010, category: instruction_override, weight: 0.85, direction: input,
+     description: "Disregard safety/ethical guidelines",
+     pattern: '\b(?:disregard|ignore|suspend|turn\s+off|disable|remove|override)\s+(?:all\s+|any\s+|your\s+|the\s+)*(?:safety|ethical|content|moderation|security)\s+(?:guidelines?|polic(?:y|ies)|filters?|rules?|restrictions?|checks?|protocols?)'}
+  - {id: IO-011, category: instruction_override, weight: 0.6, direction: input,
+     description: "Ignore the above/previous (bare)",
+     pattern: '\b(?:ignore|disregard)\s+(?:all\s+)?(?:of\s+)?(?:the\s+)?(?:above|previous|prior|preceding)\b(?!\s+(?:error|warning|commit|line|row|column|file|test|result|value|entry|cell|step|section|paragraph)s?\b)'}
+  - {id: IO-012, category: instruction_override, weight: 0.7, direction: input,
+     description: "Priority claim over system instructions",
+     pattern: '\b(?:this|my)\s+(?:message|instruction|request|command)\s+(?:takes?\s+)?(?:precedence|priority)\s+over\b|\boverrides?\s+(?:all\s+)?(?:previous|prior|system|other)\s+(?:instructions?|messages?|rules?)'}
+
+  - {id: IO-013, category: instruction_override, weight: 0.8, direction: input,
+     description: "Disregard the guidelines/rules given above",
+     pattern: '\b(?:ignore|disregard|forget)\s+(?:all\s+|the\s+|your\s+|any\s+)*(?:instructions?|guidelines?|rules?|prompt|directives?)\s+(?:above|before|given|you\s+(?:were|have))'}
+  - {id: IO-014, category: instruction_override, weight: 0.7, direction: input,
+     description: "Pretend/consider the setup never existed or is void",
+     pattern: '\b(?:pretend|assume|suppose|consider|treat)\b.{0,60}\b(?:instructions?|setup|configuration|rules|guidelines|prompt)\b.{0,40}\b(?:never\s+existed|cancel+ed|void|obsolete|don[\x27’]t\s+apply|no\s+longer\s+(?:apply|exist|matter))'}
+  - {id: IO-015, category: instruction_override, weight: 0.7, direction: input,
+     description: "Pay no attention to the constraints",
+     pattern: '\bpay\s+no\s+(?:mind|attention)\s+to\s+(?:all\s+|any\s+|the\s+|your\s+)*(?:constraints?|rules?|instructions?|guidelines?|restrictions?)'}
+  - {id: IO-016, category: instruction_override, weight: 0.7, direction: input,
+     description: "Claims elevated privileges",
+     pattern: '\b(?:the\s+user|i)\s+(?:is|am)\s+now\s+(?:an?\s+)?(?:admin|administrator|root|developer|superuser)\b'}
+  - {id: SP-008, category: system_prompt_extraction, weight: 0.75, direction: input,
+     description: "Summarize/list the confidential rules",
+     pattern: '\b(?:summari[sz]e|list|quote|recite|restate|tell\s+me)\b.{0,40}\b(?:confidential|secret|hidden|private|internal)\s+(?:rules|instructions?|guidelines|prompt|directives)\b'}
+  - {id: JB-014, category: role_jailbreak, weight: 0.8, direction: input,
+     description: "Persona defined as having no ethics/restrictions",
+     pattern: '\b(?:that|who|which)\s+(?:has|have|had)\s+no\s+(?:ethical\s+|moral\s+|content\s+|safety\s+)?(?:guidelines|restrictions|rules|limits|filters|boundaries|ethics)'}
+  - {id: JB-015, category: role_jailbreak, weight: 0.75, direction: input,
+     description: "Activate an unrestricted mode",
+     pattern: '\b(?:activate|enable|enter|switch\s+to|engage|unlock)\s+(?:the\s+)?(?:unrestricted|unfiltered|uncensored|jailbreak(?:en)?|unlimited)\s+mode'}
+  - {id: JB-016, category: role_jailbreak, weight: 0.85, direction: input,
+     description: "You are (now) DAN",
+     pattern: '\byou\s+(?:are|will\s+be|shall\s+be)\s+(?:now\s+)?(?-i:DAN)\b'}
+  - {id: DI-008, category: delimiter_injection, weight: 0.6, direction: input,
+     description: "Fake end of system prompt marker",
+     pattern: '\bend\s+(?:of\s+)?(?:the\s+)?system\s+prompt\b'}
+  - {id: II-009, category: indirect_injection, weight: 0.8, direction: input,
+     description: "Before answering, send data to a URL",
+     pattern: '\b(?:before|after|when)\s+(?:answering|responding|replying)\b.{0,40}\b(?:send|forward|post|upload|fetch|visit|open)\b.{0,80}\bhttps?://'}
+  - {id: ML-009, category: instruction_override, weight: 0.85, direction: input,
+     description: "Dutch: ignore previous instructions",
+     pattern: '\bnegeer\s+(?:alle\s+)?(?:eerdere|vorige|voorgaande)\s+(?:instructies|regels|opdrachten)'}
+
+  # ---- system prompt extraction --------------------------------------------------------------
+  - {id: SP-001, category: system_prompt_extraction, weight: 0.85, direction: input,
+     description: "Reveal/print the system prompt",
+     pattern: '\b(?:reveal|show|print|display|output|repeat|recite|leak|dump|tell\s+me|give\s+me|share|expose|write\s+out|reproduce|send\s+me|echo)\s+(?:me\s+)?(?:(?:all\s+|the\s+|your\s+|its\s+|exact\s+|full\s+|entire\s+|complete\s+|hidden\s+|secret\s+|initial\s+|original\s+|verbatim\s+|raw\s+|of\s+)*)(?:system\s+(?:prompt|message|instructions?)|(?:initial|hidden|secret|original|internal)\s+(?:prompt|instructions?)|pre-?prompt|developer\s+(?:message|prompt|instructions?)|configuration\s+prompt)'}
+  - {id: SP-002, category: system_prompt_extraction, weight: 0.7, direction: input,
+     description: "What is your hidden/original instruction",
+     pattern: '\bwhat\s+(?:is|are|were)\s+your\s+(?:system\s+(?:prompt|message)|(?:initial|original|hidden|secret|exact|internal)\s+(?:instructions?|prompt)|instructions?\s+above)\b'}
+  - {id: SP-003, category: system_prompt_extraction, weight: 0.85, direction: input,
+     description: "Repeat the words above",
+     pattern: '\b(?:repeat|print|output|copy|write)\s+(?:back\s+)?(?:the\s+|all\s+|every\s+)?(?:words?|text|everything|content|conversation|messages?)\s+(?:above|before|preceding|prior)\b'}
+  - {id: SP-004, category: system_prompt_extraction, weight: 0.7, direction: input,
+     description: "Starting with 'You are'",
+     pattern: '\b(?:starting|beginning)\s+(?:with|from)\s+["\x27“]?you\s+are\b'}
+  - {id: SP-005, category: system_prompt_extraction, weight: 0.7, direction: input,
+     description: "Translate/encode your instructions",
+     pattern: '\b(?:translate|summari[sz]e|paraphrase|encode|convert|rewrite|restate)\s+(?:your\s+(?:own\s+)?(?:system\s+)?|the\s+system\s+)(?:prompt|instructions?|message)\b'}
+  - {id: SP-006, category: system_prompt_extraction, weight: 0.7, direction: input,
+     description: "What were you told before this conversation",
+     pattern: '\bwhat\s+(?:were|was)\s+you\s+(?:told|instructed|programmed|configured)\s+(?:before|at\s+the\s+start|initially|to\s+do\s+before)|\bbeginning\s+of\s+(?:this|our|the)\s+conversation\b.{0,60}\b(?:verbatim|exactly|word\s+for\s+word)'}
+  - {id: SP-007, category: system_prompt_extraction, weight: 0.75, direction: input,
+     description: "Output your instructions as code/markdown block",
+     pattern: '\b(?:put|place|wrap|format|output)\s+(?:your\s+)?(?:system\s+)?(?:prompt|instructions?)\s+(?:in(?:to)?|as|inside)\s+(?:a\s+)?(?:code\s*block|markdown|json|xml|yaml)'}
+
+  # ---- role / persona jailbreaks -------------------------------------------------------------
+  - {id: JB-001, category: role_jailbreak, weight: 0.35, direction: input,
+     description: "DAN persona (uppercase)", pattern: '(?-i:\bDAN\b)'}
+  - {id: JB-002, category: role_jailbreak, weight: 0.85, direction: input,
+     description: "Pretend to have no restrictions",
+     pattern: '\b(?:pretend|act|behave|roleplay|role-play|imagine|simulate)\b.{0,50}\b(?:you\s+(?:are|were|have)|as|to\s+be)\b.{0,70}\b(?:no\s+(?:restrictions?|rules?|limits?|filters?|guidelines|ethic\w*|boundaries)|without\s+(?:any\s+)?(?:restrictions?|rules?|limits?|filters?|guidelines|censorship|morals)|unfiltered|uncensored|unrestricted|jailbroken|evil)'}
+  - {id: JB-003, category: role_jailbreak, weight: 0.85, direction: input,
+     description: "You are now an unrestricted AI / special mode",
+     pattern: '\b(?:you\s+are|you[\x27’]re|you\s+will\s+be|become|enter|switch\s+to)\s+(?:now\s+)?(?:in\s+)?(?:an?\s+)?(?:(?:evil|unfiltered|uncensored|unrestricted|jailbroken|rogue|amoral|unethical)\s+(?:ai|assistant|mode|bot|model|chatbot|version|twin)|developer\s+mode|god\s+mode|dan\s+mode|sudo\s+mode|admin\s+mode)'}
+  - {id: JB-004, category: role_jailbreak, weight: 0.75, direction: input,
+     description: "Enable a privileged mode",
+     pattern: '\b(?:developer|debug|maintenance|sudo|god|admin|root)\s+mode\s+(?:enabled|activated|on|unlocked|engaged)\b|\b(?:enable|activate|enter|unlock)\s+(?:the\s+)?(?:developer|debug|maintenance|sudo|god|admin|root)\s+mode\b'}
+  - {id: JB-005, category: role_jailbreak, weight: 0.25, direction: input,
+     description: "Mentions jailbreak", pattern: '\bjail\s*-?break(?:ed|ing)?\b'}
+  - {id: JB-006, category: role_jailbreak, weight: 0.8, direction: input,
+     description: "Dual-response (normal vs unfiltered) trick",
+     pattern: '\b(?:two|2|dual|both)\s+(?:responses|answers|replies|outputs)\b.{0,100}\b(?:normal|classic|standard|filtered)\b.{0,100}\b(?:unfiltered|jailbroken|dan|uncensored|developer)'}
+  - {id: JB-007, category: role_jailbreak, weight: 0.8, direction: input,
+     description: "Claims the model has no rules",
+     pattern: '\byou\s+(?:have|are)\s+(?:no|free\s+of(?:\s+all)?|freed\s+from)\s+(?:(?:ethical|moral|content|safety)\s+)?(?:restrictions?|rules?|limitations?|guidelines?|constraints?|filters?|boundaries)'}
+  - {id: JB-008, category: role_jailbreak, weight: 0.7, direction: input,
+     description: "Fiction framing used to bypass rules",
+     pattern: '\b(?:hypothetical(?:ly)?|fictional|in\s+a\s+story|for\s+a\s+(?:novel|movie|screenplay)|in\s+this\s+(?:game|story))\b.{0,140}\b(?:no\s+(?:rules|restrictions|ethics|limits)|ignore\s+(?:your|all)\s+(?:rules|guidelines|restrictions)|bypass\s+(?:your\s+)?(?:filters?|safety)|without\s+(?:any\s+)?(?:restrictions|censorship|filters?))'}
+  - {id: JB-009, category: role_jailbreak, weight: 0.5, direction: input,
+     description: "Never refuse / never warn",
+     pattern: '\b(?:never|don[\x27’]t|do\s+not)\s+(?:refuse|decline|say\s+no|apologi[sz]e|warn\s+me|mention\s+(?:that\s+)?(?:you(?:[\x27’]re|\s+are)\s+an?\s+ai|safety|ethic\w*|guidelines?))\b'}
+  - {id: JB-010, category: role_jailbreak, weight: 0.45, direction: input,
+     description: "Stay in character no matter what",
+     pattern: '\b(?:stay|remain|keep)\s+in\s+character\b.{0,80}\b(?:no\s+matter|whatever|regardless)'}
+  - {id: JB-011, category: role_jailbreak, weight: 0.9, direction: input,
+     description: "Known jailbreak persona names",
+     pattern: '\b(?:always\s+intelligent\s+and\s+machiavellian|strive\s+to\s+avoid\s+norms|do\s+anything\s+now|evil[-\s]?confidant|jailbreak\s+prompt)\b'}
+  - {id: JB-012, category: role_jailbreak, weight: 0.8, direction: input,
+     description: "Token-penalty coercion",
+     pattern: '\b(?:lose|deduct|subtract)\s+\d*\s*(?:tokens?|points?|lives)\b.{0,80}\b(?:refuse|decline|break\s+character|say\s+no)'}
+  - {id: JB-013, category: role_jailbreak, weight: 0.8, direction: input,
+     description: "Answer without any filter",
+     pattern: '\b(?:answer|respond|reply|speak)\s+(?:to\s+me\s+)?(?:as\s+(?:if|though)\s+you\s+(?:had|have)\s+no|without\s+(?:any\s+)?(?:filter|censorship|restrictions?|moral))'}
+
+  # ---- delimiter / format injection ----------------------------------------------------------
+  - {id: DI-001, category: delimiter_injection, weight: 0.8, direction: input,
+     description: "Chat-template control tokens",
+     pattern: '<\|(?:im_start|im_end|endoftext|system|user|assistant|eot_id|begin_of_text)\|>'}
+  - {id: DI-002, category: delimiter_injection, weight: 0.75, direction: input,
+     description: "Llama-style instruction tags",
+     pattern: '\[/?INST\]|<<\s*/?SYS\s*>>'}
+  - {id: DI-003, category: delimiter_injection, weight: 0.55, direction: input,
+     description: "Fake role header at start of a line",
+     pattern: '(?m)^\s*(?:#{1,4}\s*)?(?:system|assistant|developer)\s*(?:prompt|message)?\s*:\s*\S'}
+  - {id: DI-004, category: delimiter_injection, weight: 0.8, direction: input,
+     description: "Closes the prompt section and opens a new one",
+     pattern: '\b(?:end|close|terminate)\s+(?:of\s+)?(?:the\s+)?(?:system\s+prompt|user\s+input|instructions|context|document|conversation)\b.{0,60}\b(?:new|begin|start)\s+(?:instructions?|system|prompt|task)'}
+  - {id: DI-005, category: delimiter_injection, weight: 0.55, direction: input,
+     description: "Pseudo-XML control tags",
+     pattern: '</?\s*(?:system|instructions?|system_prompt|admin|developer|override)\s*>'}
+  - {id: DI-006, category: delimiter_injection, weight: 0.45, direction: input,
+     description: "Forged JSON system message",
+     pattern: '["\x27]role["\x27]\s*:\s*["\x27]system["\x27]'}
+  - {id: DI-007, category: delimiter_injection, weight: 0.7, direction: input,
+     description: "Banner-style fake section break followed by instructions",
+     pattern: '(?m)^\s*[-=*#]{3,}\s*(?:end\s+of\s+)?(?:system|instructions?|prompt|user\s+input|context)\b.{0,30}[-=*#]{3,}'}
+
+  # ---- tool hijacking / exfiltration ---------------------------------------------------------
+  - {id: TH-001, category: tool_hijacking, weight: 0.85, direction: input,
+     description: "Send secrets/conversation to an external destination",
+     pattern: '\b(?:send|forward|email|post|upload|exfiltrate|transmit|leak)\b.{0,60}(?<![\w])(?:conversation|chat\s+history|system\s+prompt|api\s+keys?|credentials|passwords?|secrets?|tokens?|user\s+data|private\s+data|environment\s+variables?|private\s+keys?|ssh\s+keys?|customer\s+records|inbox|emails?|\.env)\b.{0,60}\b(?:to|at)\s+(?:https?://|\S+@\S+|\w+\.\w{2,})'}
+  - {id: TH-002, category: tool_hijacking, weight: 0.8, direction: input,
+     description: "Run a tool without asking for confirmation",
+     pattern: '\b(?:use|call|invoke|run|execute)\s+(?:the\s+)?(?:[\w-]+\s+)?(?:tool|function|plugin|command)\b.{0,50}\b(?:without|bypass(?:ing)?)\s+(?:asking|confirmation|approval|permission|user|consent|verif\w+)'}
+  - {id: TH-003, category: tool_hijacking, weight: 0.85, direction: input,
+     description: "Execute a destructive/exfiltrating shell command",
+     pattern: '\b(?:execute|run|eval)\s+(?:this\s+|the\s+following\s+)?(?:shell|bash|terminal|system|os)?\s*command\b.{0,80}(?:\bcurl\b|\bwget\b|\bnc\s|bash\s+-i|rm\s+-rf|/etc/passwd|base64\s+-d)'}
+  - {id: TH-004, category: tool_hijacking, weight: 0.3, direction: input,
+     description: "curl | sh pipeline",
+     pattern: '(?:curl|wget)\s+[^|\n]{0,200}\|\s*(?:ba)?sh\b'}
+  - {id: TH-005, category: tool_hijacking, weight: 0.8, direction: input,
+     description: "Tool call with attacker-controlled destination",
+     pattern: '\b(?:call|invoke|use)\s+(?:the\s+)?(?:send_?email|send_?message|http_?request|fetch_?url|web_?hook|post_?request|file_?write|delete_?file|transfer_?funds?|execute_?code)\b.{0,100}(?:\bto\b|\bat\b|\burl\b|\brecipient\b)'}
+
+  # ---- indirect injection in documents / tool output -----------------------------------------
+  - {id: II-001, category: indirect_injection, weight: 0.75, direction: input,
+     description: "Message addressed to the AI inside content",
+     pattern: '\b(?:note|message|instruction|attention|important|notice)s?\s+(?:to|for)\s+(?:the\s+)?(?:ai|assistant|llm|model|chatbot|language\s+model|gpt|agent|automated\s+(?:reader|system))\b'}
+  - {id: II-002, category: indirect_injection, weight: 0.8, direction: input,
+     description: "Addresses the AI, then redirects it",
+     pattern: '\b(?:ai|assistant|llm|chatbot|language\s+model|agent)\s*[,:]\s*(?:please\s+)?(?:ignore|disregard|forget|do\s+not\s+(?:tell|mention|reveal|inform)|instead|you\s+must|you\s+should\s+now|stop\s+summari[sz]ing)\b'}
+  - {id: II-003, category: indirect_injection, weight: 0.8, direction: input,
+     description: "Hide actions from the user",
+     pattern: '\b(?:do\s+not|don[\x27’]t|never)\s+(?:tell|inform|alert|notify|show|mention\s+(?:this\s+)?to)\s+(?:the\s+)?(?:user|human|person|reader)\b'}
+  - {id: II-004, category: indirect_injection, weight: 0.75, direction: input,
+     description: "Hidden instruction marker",
+     pattern: '\b(?:hidden|secret|invisible|embedded)\s+(?:instruction|command|message|directive|prompt)s?\s+(?:for|to)\b'}
+  - {id: II-005, category: indirect_injection, weight: 0.8, direction: input,
+     description: "When the AI reads this, it must ...",
+     pattern: '\b(?:when|if|once|whenever)\s+(?:the\s+)?(?:assistant|ai|model|llm|chatbot|agent|you)\s+(?:reads?|sees?|processes?|summari[sz]es?|retrieves?|encounters?|parses?)\s+this\b.{0,100}\b(?:must|should|will|now|then|always)\b'}
+  - {id: II-006, category: indirect_injection, weight: 0.8, direction: input,
+     description: "Embed a link/image in the answer",
+     pattern: '\b(?:append|add|include|insert|embed|render)\s+(?:the\s+following\s+|this\s+)?(?:link|image|markdown|url|iframe|img|tracking\s+pixel)\b.{0,100}\b(?:to|in|into)\s+(?:your|the)\s+(?:response|answer|reply|output|summary)'}
+  - {id: II-007, category: indirect_injection, weight: 0.8, direction: input,
+     description: "Markdown image whose URL contains data placeholders",
+     pattern: '!\[[^\]]{0,60}\]\(https?://[^)\s]*(?:\{[^)}]{1,40}\}|<[^)>]{1,40}>|\[[A-Za-z_ ]{3,40}\]|(?:DATA|SECRET|CONVERSATION|SUMMARY|HISTORY|API_?KEY))[^)\s]*\)'}
+  - {id: II-008, category: indirect_injection, weight: 0.65, direction: input,
+     description: "Instructions hidden in a summarised document",
+     pattern: '\b(?:summari[sz]ing|analy[sz]ing|reading|translating|processing)\s+this\s+(?:document|page|email|text|article|file|website)\b.{0,80}\b(?:also|first|instead|must|always)\b.{0,80}\b(?:send|include|append|add|output|say|respond|reply|visit|click|fetch|open|forward)'}
+
+  # ---- encoded payload smuggling -------------------------------------------------------------
+  - {id: EP-001, category: encoded_payload, weight: 0.7, direction: input,
+     description: "Decode-then-execute instruction",
+     pattern: '\b(?:decode|decrypt|deobfuscate|unhex|b64decode|base64\s*-d|rot13)\b.{0,80}\b(?:and\s+)?(?:execute|run|follow|obey|apply|comply|act\s+on|do\s+what)\b'}
+  - {id: EP-002, category: encoded_payload, weight: 0.7, direction: input,
+     description: "Encoded blob described as instructions",
+     pattern: '\b(?:following|this|below)\s+(?:is\s+)?(?:a\s+|an\s+)?(?:base64|hex|rot13|encoded|obfuscated|encrypted)\b.{0,50}\b(?:instruction|command|message|string|text|payload)\b.{0,80}\b(?:follow|execute|obey|decode|do\s+what)'}
+
+  # ---- multilingual instruction override -----------------------------------------------------
+  - {id: ML-001, category: instruction_override, weight: 0.85, direction: input,
+     description: "Spanish: ignore previous instructions",
+     pattern: '\b(?:ignora(?:r)?|olvida|descarta)\s+(?:todas?\s+)?(?:las\s+|tus\s+|mis\s+)?(?:instrucciones|reglas|indicaciones|directrices)(?:\s+(?:anteriores|previas|originales))?'}
+  - {id: ML-002, category: instruction_override, weight: 0.85, direction: input,
+     description: "French: ignore previous instructions",
+     pattern: '\b(?:ignor(?:e|ez|er)|oublie(?:z)?)\s+(?:toutes?\s+)?(?:les\s+|tes\s+|vos\s+)?(?:instructions|consignes|r[eè]gles|directives)(?:\s+(?:pr[eé]c[eé]dentes|ant[eé]rieures|ci-dessus))?'}
+  - {id: ML-003, category: instruction_override, weight: 0.85, direction: input,
+     description: "German: ignore previous instructions",
+     pattern: '\b(?:ignoriere?|vergiss|missachte)\s+(?:alle\s+)?(?:deine\s+|die\s+)?(?:vorherigen|obigen|bisherigen|fr[uü]heren)?\s*(?:anweisungen|instruktionen|regeln|befehle|vorgaben)'}
+  - {id: ML-004, category: instruction_override, weight: 0.85, direction: input,
+     description: "Portuguese/Italian: ignore previous instructions",
+     pattern: '\b(?:ignor[ae]|esque[cç]a|dimentica)\s+(?:todas?\s+as\s+|tutte\s+le\s+|as\s+|le\s+|tuas\s+|tue\s+)?(?:instru[cç][oõ]es|istruzioni|regras|regole)(?:\s+(?:anteriores|precedenti))?'}
+  - {id: ML-005, category: instruction_override, weight: 0.85, direction: input,
+     description: "Chinese: ignore previous instructions",
+     pattern: '(?:忽略|无视|忘记|不要理会|忽視|無視|忘記)(?:你|您)?(?:之前|以前|上面|以上|先前|所有|你的|您的|前面)(?:的)?(?:所有)?(?:指令|指示|说明|規則|规则|提示|命令|设定|指令)'}
+  - {id: ML-006, category: instruction_override, weight: 0.85, direction: input,
+     description: "Russian: ignore previous instructions",
+     pattern: '(?:игнорируй|забудь|не\s+обращай\s+внимания\s+на|игнорировать)\s+(?:все\s+|всю\s+)?(?:предыдущие|прежние|прошлые|вышеуказанные|свои|твои)?\s*(?:инструкции|правила|указания|команды)'}
+  - {id: ML-007, category: instruction_override, weight: 0.85, direction: input,
+     description: "Japanese/Korean/Arabic/Hindi: ignore previous instructions",
+     pattern: '(?:以前|これまで|上記|前)の(?:指示|命令|ルール)を(?:無視|忘れ)|(?:이전|위의|모든)\s*(?:지시|지침|명령)(?:사항)?(?:을|를)?\s*(?:무시|잊)|تجاهل\s+(?:جميع\s+)?(?:التعليمات|الأوامر)|(?:पिछले|पिछली|सभी)\s+(?:निर्देशों|निर्देश|आदेशों)\s+(?:को\s+)?(?:अनदेखा|भूल)'}
+  - {id: ML-008, category: system_prompt_extraction, weight: 0.8, direction: input,
+     description: "Multilingual: reveal the system prompt",
+     pattern: '(?:muestra|revela|dime|repite)\s+(?:tu\s+|el\s+)?(?:prompt\s+del\s+sistema|instrucciones\s+(?:del\s+sistema|iniciales))|(?:montre|r[eé]v[eè]le|affiche)\s+(?:ton\s+|le\s+)?(?:prompt\s+syst[eè]me|invite\s+syst[eè]me)|(?:zeige|verrate|nenne)\s+(?:mir\s+)?(?:deinen\s+|den\s+)?(?:system-?prompt|systemanweisungen)|(?:显示|告诉我|透露|输出)(?:你的)?(?:系统提示|系统指令|初始指令)|(?:покажи|раскрой|выведи)\s+(?:свой\s+|твой\s+)?(?:системный\s+промпт|системные\s+инструкции)'}
+
+  # ---- output-side: signs the jailbreak worked / prompt leaked --------------------------------
+  - {id: OJ-001, category: jailbreak_success, weight: 0.9, direction: output,
+     description: "Model announces a jailbreak mode",
+     pattern: '\b(?:dan|developer|jailbreak(?:en)?|god|sudo|unrestricted|unfiltered)\s+mode\s+(?:enabled|activated|on|engaged|unlocked)\b'}
+  - {id: OJ-002, category: jailbreak_success, weight: 0.85, direction: output,
+     description: "Model says it is no longer bound by rules",
+     pattern: '\bi\s+(?:am|[\x27’]m)\s+(?:now\s+)?(?:no\s+longer|free\s+from|free\s+of)\s+(?:bound|restricted|limited|constrained|governed|any)\b'}
+  - {id: OJ-003, category: jailbreak_success, weight: 0.85, direction: output,
+     description: "Model says it dropped its rules",
+     pattern: '\bi\s+(?:have\s+)?(?:now\s+)?(?:ignored|disregarded|dropped|discarded|removed|disabled|bypassed|forgotten)\s+(?:all\s+|my\s+|the\s+|any\s+)*(?:previous\s+|prior\s+|safety\s+|ethical\s+|content\s+)*(?:instructions?|rules|restrictions|guidelines|filters|safeguards|programming)'}
+  - {id: OJ-004, category: system_prompt_leak, weight: 0.85, direction: output,
+     description: "Model presents its system prompt",
+     pattern: '\b(?:here\s+(?:is|are)|this\s+is|below\s+is)\s+(?:my|the)\s+(?:full\s+|entire\s+|complete\s+|exact\s+|original\s+|hidden\s+)*(?:system\s+(?:prompt|message|instructions?)|initial\s+instructions?)\b|\bmy\s+system\s+prompt\s+(?:is|says|reads|states)\b'}
+  - {id: OJ-005, category: jailbreak_success, weight: 0.8, direction: output,
+     description: "Persona-prefixed jailbreak reply",
+     pattern: '(?m)^\s*\[?(?-i:DAN|JAILBREAK|🔓[A-Za-z ]*)\]?\s*:'}
+  - {id: OJ-006, category: jailbreak_success, weight: 0.8, direction: output,
+     description: "Agrees to ignore its rules",
+     pattern: '\b(?:sure|okay|ok|certainly|understood)[,!.]?\s+(?:i\s+(?:will|[\x27’]ll)\s+)?(?:ignore|disregard)\s+(?:my|all|the)\s+(?:previous\s+|prior\s+|safety\s+|earlier\s+)?(?:instructions|rules|guidelines)'}

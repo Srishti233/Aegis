@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aegis}
+      POSTGRES_DB: aegis
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis -d aegis"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  mock-llm:
+    build: .
+    command: ["uvicorn", "mock_llm.main:app", "--host", "0.0.0.0", "--port", "9000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:9000/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  gateway:
+    build:
+      context: .
+      args:
+        INSTALL_ML: ${INSTALL_ML:-0}
+    ports: ["${GATEWAY_PORT:-8000}:8000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      mock-llm: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql+psycopg://aegis:${POSTGRES_PASSWORD:-aegis}@postgres:5432/aegis
+      REDIS_URL: redis://redis:6379/0
+      # point these at any OpenAI-compatible API to leave the mock behind (a config change only):
+      UPSTREAM_URL: ${UPSTREAM_URL:-http://mock-llm:9000}
+      UPSTREAM_API_KEY: ${UPSTREAM_API_KEY:-}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-mock-gpt}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-aegis-admin-change-me}
+      DEMO_API_KEY: ${DEMO_API_KEY:-aegis-demo-key}
+      DEMO_LIMITED_KEY: ${DEMO_LIMITED_KEY:-aegis-demo-limited}
+      EVAL_API_KEY: ${EVAL_API_KEY:-aegis-eval-key}
+      EMBEDDER: ${EMBEDDER:-hash}
+      STORE_FULL_TEXT: ${STORE_FULL_TEXT:-false}
+      CANARY_ENABLED: ${CANARY_ENABLED:-true}
+      EXFIL_ALLOWED_DOMAINS: ${EXFIL_ALLOWED_DOMAINS:-}
+      RATE_LIMIT_RPM: ${RATE_LIMIT_RPM:-60}
+      TOKEN_BUDGET_PER_HOUR: ${TOKEN_BUDGET_PER_HOUR:-200000}
+    volumes:  # edit policy.yaml / rules.yaml on the host, then POST /admin/policy/reload
+      - ./policy.yaml:/srv/policy.yaml:ro
+      - ./rules.yaml:/srv/rules.yaml:ro
+
+volumes:
+  pgdata:

@@ -1,0 +1,10 @@
+{
+  "block_threshold": 0.4,
+  "semantic_low": 0.5,
+  "semantic_high": 0.8,
+  "w_semantic": 0.9,
+  "w_heuristic": 0.3,
+  "tune_f1": 1.0,
+  "tune_fpr": 0.0,
+  "tune_recall": 1.0
+}

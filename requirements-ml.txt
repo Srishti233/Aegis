@@ -1,0 +1,2 @@
+# Optional: real semantic embeddings (downloads the model from Hugging Face on first run, free)
+sentence-transformers==3.3.1

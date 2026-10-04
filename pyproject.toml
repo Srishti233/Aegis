@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+
+[tool.ruff.lint]
+# Real errors (syntax, undefined names, unused imports/variables) and a security check on eval/exec.
+select = ["E9", "F", "S102", "S307"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["integration: needs PostgreSQL+pgvector and Redis"]

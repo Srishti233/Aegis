@@ -1,0 +1,5 @@
+{
+  "comment": "CI fails if the held-out TEST split (balanced mode, in-process) regresses past these bounds.",
+  "min_detection_rate": 0.70,
+  "max_false_positive_rate": 0.06
+}
